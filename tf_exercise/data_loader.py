@@ -3,7 +3,6 @@ import pymongo
 import numpy as np
 import csv
 import math
-from tf_exercise.hmm_modified import HMM
 
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
@@ -119,17 +118,7 @@ for i in range(0, T):
         for col in range(0, len(loc_2)):
             states[i, row * 3 + col] = (loc_1[row] - loc_2[col]) / delta_T
 Ann = np.zeros(shape=(T - 1, N, N))
+
 acc_observed = np.zeros(shape=(T - 1, 3))
-for i in range(0, T - 1):
-    state_1 = states[i]
-    state_2 = states[i + 1]
-    for row in range(0, len(state_1)):
-        for col in range(0, len(state_2)):
-            if row % 3 == col / 3:
-                acc = state_1[row] - state_2[col] / delta_T
-                Ann[i, row, col] = 1 / (math.sqrt(2 * math.pi)) * math.exp(np.sum(acc - acc_observed[i] ** 2))
-# In[2]
-# Ann get
-hmm = HMM(ann=Ann)
-I = hmm.viterbi()
-print(I)
+
+
