@@ -1,7 +1,10 @@
+# In[0]
 import pymongo
 import numpy as np
 import csv
+import math
 from tf_exercise.hmm_modified import HMM
+
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
@@ -30,7 +33,6 @@ def find_locations(rotation_matrix):
                      "rot7": {"$gt": rot7 - error, "$lt": rot7 + error},
                      "rot8": {"$gt": rot8 - error, "$lt": rot8 + error}
                      })
-    print(res.count())
     dist = 10000
     loc = ""
     for r in res:
@@ -48,7 +50,7 @@ def find_locations(rotation_matrix):
         if dist > distance:
             dist = distance
             loc = r["loc"]
-    # print(loc)
+    print(loc)
     return loc_string_to_array(loc)
 
 
@@ -92,6 +94,7 @@ csv_reader = csv.reader(open('5.csv', encoding='utf-8'))
 
 N = 0
 locs = np.array((10, -1, 3))
+locations = np.zeros(shape=(11, 3, 3))
 for row in csv_reader:
     if N > 10:  # 11 times
         break
@@ -101,4 +104,32 @@ for row in csv_reader:
         rot = romatrix(float(row[6]), float(row[5]), float(row[3]))
         rot_list = rot.tolist()
         res = find_locations(rot_list)
-        print(res)
+        locations[N - 1] = res
+
+# In[1]
+
+T = locations.shape[0] - 1
+N = locations.shape[2] ** 2
+states = np.zeros(shape=(T, N, 3))
+delta_T = 0.1
+for i in range(0, T):
+    loc_1 = locations[i]
+    loc_2 = locations[i + 1]
+    for row in range(0, len(loc_1)):
+        for col in range(0, len(loc_2)):
+            states[i, row * 3 + col] = (loc_1[row] - loc_2[col]) / delta_T
+Ann = np.zeros(shape=(T - 1, N, N))
+acc_observed = np.zeros(shape=(T - 1, 3))
+for i in range(0, T - 1):
+    state_1 = states[i]
+    state_2 = states[i + 1]
+    for row in range(0, len(state_1)):
+        for col in range(0, len(state_2)):
+            if row % 3 == col / 3:
+                acc = state_1[row] - state_2[col] / delta_T
+                Ann[i, row, col] = 1 / (math.sqrt(2 * math.pi)) * math.exp(np.sum(acc - acc_observed[i] ** 2))
+# In[2]
+# Ann get
+hmm = HMM(ann=Ann)
+I = hmm.viterbi()
+print(I)

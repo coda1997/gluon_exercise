@@ -18,7 +18,7 @@ class HMM:
         psi = np.zeros((T, self.N), np.float)
 
         for i in range(self.N):
-            delta[0, i] = self.Pi[i] * 1
+            delta[0, i] = self.Pi * 1
             psi[0, i] = 0
 
         for t in range(1, T):
