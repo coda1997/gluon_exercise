@@ -109,16 +109,41 @@ for row in csv_reader:
 
 T = locations.shape[0] - 1
 N = locations.shape[2] ** 2
-states = np.zeros(shape=(T, N, 3))
 delta_T = 0.1
+
+# initialize states
+states = np.zeros(shape=(T, N, 3))
 for i in range(0, T):
     loc_1 = locations[i]
     loc_2 = locations[i + 1]
     for row in range(0, len(loc_1)):
         for col in range(0, len(loc_2)):
             states[i, row * 3 + col] = (loc_1[row] - loc_2[col]) / delta_T
-Ann = np.zeros(shape=(T - 1, N, N))
 
+# dummy observed acc
 acc_observed = np.zeros(shape=(T - 1, 3))
+res = np.zeros(shape=(T, 3))
+
+# Initialization state
 
 
+# updating from 1 to T
+for t in range(0, T - 1):
+    state_from = states[t]
+    state_to = states[t + 1]
+    tag = 0
+    min = 1000000
+    for row in range(0, len(state_from)):
+        for col in range(0, len(state_to)):
+            if row % 3 == col / 3:
+                acc = (state_to[row] - state_from[col]) / delta_T
+                temp = np.sum((acc - acc_observed) ** 2)
+                if temp < min:
+                    min = temp
+                    tag = col
+
+    print(state_to[tag])
+    res[t] = state_to[tag]
+
+for t in range(1, len(res)):
+    print('time: %d, pos: %s' % (t + 1, str(res[t])))
