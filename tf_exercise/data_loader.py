@@ -7,7 +7,7 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas"]
+cols = mydb["datas_wrist"]
 
 
 def find_locations(rotation_matrix):
@@ -143,7 +143,10 @@ for t in range(0, T - 1):
                     tag = col
 
     print(state_to[tag])
-    res[t] = state_to[tag]
+    res[t + 1] = state_to[tag]
+
+out = open("res.csv", "a+", newline="")
+csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
-    print('time: %d, pos: %s' % (t + 1, str(res[t])))
+    csv_writer.writerow(res[t])
