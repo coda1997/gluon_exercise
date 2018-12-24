@@ -9,6 +9,9 @@ myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
 cols = mydb["datas"]
 
+T = 10
+delta_T = 0.1
+
 
 def find_locations(rotation_matrix):
     rot0 = round(rotation_matrix[0][0], 4)
@@ -89,27 +92,44 @@ def romatrix(a1, a2, a3):
     return R
 
 
+# start, end are states, shape like (n, 3): n is the number of possible position/location
+# 3 means x, y, z axis informative data
+# accl : the observed acc
+def viterbi_each_step(start, end, accl):
+    tag = 0
+    min_t = 1000000
+    for row in range(0, len(start)):
+        for col in range(0, len(end)):
+            if row % 3 == col / 3:
+                acc = (start[row] - end[col]) / delta_T
+                temp = np.sum((acc - acc_observed) ** 2)
+                if temp < min_t:
+                    min_t = temp
+                    tag = col
+    return end[tag]
+
+
 csv_reader = csv.reader(open('5.csv', encoding='utf-8'))
 
-N = 0
+ii = 0
+
 locs = np.array((10, -1, 3))
-locations = np.zeros(shape=(11, 3, 3))
+locations = np.zeros(shape=(T + 1, 3, 3))
+prev = []
 for row in csv_reader:
-    if N > 10:  # 11 times
+    if ii > T:  # 11 times
         break
-    N = N + 1
+    ii = ii + 1
 
     if len(row) == 7:
         rot = romatrix(float(row[6]), float(row[5]), float(row[3]))
         rot_list = rot.tolist()
         res = find_locations(rot_list)
-        locations[N - 1] = res
+        locations[ii - 1] = res
 
 # In[1]
 
-T = locations.shape[0] - 1
 N = locations.shape[2] ** 2
-delta_T = 0.1
 
 # initialize states
 states = np.zeros(shape=(T, N, 3))
@@ -123,27 +143,3 @@ for i in range(0, T):
 # dummy observed acc
 acc_observed = np.zeros(shape=(T - 1, 3))
 res = np.zeros(shape=(T, 3))
-
-# Initialization state
-
-
-# updating from 1 to T
-for t in range(0, T - 1):
-    state_from = states[t]
-    state_to = states[t + 1]
-    tag = 0
-    min = 1000000
-    for row in range(0, len(state_from)):
-        for col in range(0, len(state_to)):
-            if row % 3 == col / 3:
-                acc = (state_to[row] - state_from[col]) / delta_T
-                temp = np.sum((acc - acc_observed) ** 2)
-                if temp < min:
-                    min = temp
-                    tag = col
-
-    print(state_to[tag])
-    res[t] = state_to[tag]
-
-for t in range(1, len(res)):
-    print('time: %d, pos: %s' % (t + 1, str(res[t])))
