@@ -7,7 +7,24 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas_wrist"]
+cols = mydb["data"]
+
+
+def get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error):
+    res = cols.find({"rot0": {"$gt": rot0 - error, "$lt": rot0 + error},
+                     "rot1": {"$gt": rot1 - error, "$lt": rot1 + error},
+                     "rot2": {"$gt": rot2 - error, "$lt": rot2 + error},
+                     "rot3": {"$gt": rot3 - error, "$lt": rot3 + error},
+                     "rot4": {"$gt": rot4 - error, "$lt": rot4 + error},
+                     "rot5": {"$gt": rot5 - error, "$lt": rot5 + error},
+                     "rot6": {"$gt": rot6 - error, "$lt": rot6 + error},
+                     "rot7": {"$gt": rot7 - error, "$lt": rot7 + error},
+                     "rot8": {"$gt": rot8 - error, "$lt": rot8 + error}
+                     })
+    if res.count() == 0:
+        return get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error + 0.025)
+    else:
+        return res
 
 
 def find_locations(rotation_matrix):
@@ -22,16 +39,7 @@ def find_locations(rotation_matrix):
     rot8 = round(rotation_matrix[2][2], 4)
     error = 0.05
     rotation_matrix = np.reshape(rotation_matrix, 9)
-    res = cols.find({"rot0": {"$gt": rot0 - error, "$lt": rot0 + error},
-                     "rot1": {"$gt": rot1 - error, "$lt": rot1 + error},
-                     "rot2": {"$gt": rot2 - error, "$lt": rot2 + error},
-                     "rot3": {"$gt": rot3 - error, "$lt": rot3 + error},
-                     "rot4": {"$gt": rot4 - error, "$lt": rot4 + error},
-                     "rot5": {"$gt": rot5 - error, "$lt": rot5 + error},
-                     "rot6": {"$gt": rot6 - error, "$lt": rot6 + error},
-                     "rot7": {"$gt": rot7 - error, "$lt": rot7 + error},
-                     "rot8": {"$gt": rot8 - error, "$lt": rot8 + error}
-                     })
+    res = get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error)
     dist = 10000
     loc = ""
     for r in res:
@@ -49,7 +57,6 @@ def find_locations(rotation_matrix):
         if dist > distance:
             dist = distance
             loc = r["loc"]
-    print(loc)
     return loc_string_to_array(loc)
 
 
@@ -58,9 +65,10 @@ def loc_string_to_array(loc):
     num = int(len(ress) / 3)
     res = np.zeros(shape=(num, 3))
     for i in range(0, num):
-        res[i][0] = float(ress[3 * i])
-        res[i][1] = float(ress[3 * i + 1])
-        res[i][2] = float(ress[3 * i + 2])
+        res[i][0] = float(ress[3 * i].strip().lstrip('[').rstrip(']'))
+        res[i][1] = float(ress[3 * i + 1].strip().lstrip('[').rstrip(']'))
+        res[i][2] = float(ress[3 * i + 2].strip().lstrip('[').rstrip(']'))
+    print(res)
     return res
 
 
@@ -93,7 +101,7 @@ csv_reader = csv.reader(open('5.csv', encoding='utf-8'))
 
 N = 0
 locs = np.array((10, -1, 3))
-locations = np.zeros(shape=(11, 3, 3))
+locations = np.zeros(shape=(271, 3, 3))
 for row in csv_reader:
     if N > 10:  # 11 times
         break
@@ -142,11 +150,12 @@ for t in range(0, T - 1):
                     min = temp
                     tag = col
 
-    print(state_to[tag])
-    res[t + 1] = state_to[tag]
+    print(locations[t + 2, tag])
+    res[t + 1] = locations[t + 2, tag]
 
 out = open("res.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
     csv_writer.writerow(res[t])
+
