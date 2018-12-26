@@ -2,7 +2,6 @@
 import pymongo
 import numpy as np
 import csv
-import math
 
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
@@ -22,8 +21,9 @@ def get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, 
                      "rot8": {"$gt": rot8 - error, "$lt": rot8 + error}
                      })
     if res.count() == 0:
-        return get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error + 0.025)
+        return get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error + 0.06)
     else:
+        print(res.count())
         return res
 
 
@@ -103,9 +103,9 @@ N = 0
 locs = np.array((10, -1, 3))
 locations = np.zeros(shape=(271, 3, 3))
 for row in csv_reader:
-    if N > 10:  # 11 times
-        break
-    N = N + 1
+    # if N > 10:  # 11 times
+    #     break
+    # N = N + 1
 
     if len(row) == 7:
         rot = romatrix(float(row[6]), float(row[5]), float(row[3]))
