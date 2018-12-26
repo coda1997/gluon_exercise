@@ -7,7 +7,7 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["data"]
+cols = mydb["datas"]
 
 
 def get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error):
@@ -134,28 +134,32 @@ res = np.zeros(shape=(T, 3))
 
 # Initialization state
 
-
+probs = np.zeros(shape=(T, N))
 # updating from 1 to T
 for t in range(0, T - 1):
     state_from = states[t]
     state_to = states[t + 1]
     tag = 0
     min = 1000000
-    for row in range(0, len(state_from)):
-        for col in range(0, len(state_to)):
+    for col in range(0, len(state_to)):
+        min_temp = 1000000
+        for row in range(0, len(state_from)):
             if row % 3 == col / 3:
                 acc = (state_to[row] - state_from[col]) / delta_T
                 temp = np.sum((acc - acc_observed) ** 2)
-                if temp < min:
-                    min = temp
-                    tag = col
+                temp_probs = probs[t][row]+temp
+                if temp_probs < min_temp:
+                    probs[t+1][col] = temp_probs
+
+        if probs[t+1][col] < min:
+            min = probs[t+1][col]
+            tag = col
 
     print(locations[t + 2, tag])
     res[t + 1] = locations[t + 2, tag]
 
-out = open("res.csv", "a+", newline="")
+out = open("res-elbow.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
     csv_writer.writerow(res[t])
-
