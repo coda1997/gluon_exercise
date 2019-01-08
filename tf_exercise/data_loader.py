@@ -6,7 +6,7 @@ import csv
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas"]
+cols = mydb["datas_arm_weight_training_wrist"]
 
 
 def get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error):
@@ -99,9 +99,9 @@ def romatrix(a1, a2, a3):
 
 csv_reader = csv.reader(open('5.csv', encoding='utf-8'))
 
-N = 0
-locs = np.array((10, -1, 3))
-locations = np.zeros(shape=(271, 3, 3))
+# locs = np.array((10, -1, 3))
+locations = []
+_temp = 0
 for row in csv_reader:
     # if N > 10:  # 11 times
     #     break
@@ -111,54 +111,59 @@ for row in csv_reader:
         rot = romatrix(float(row[6]), float(row[5]), float(row[3]))
         rot_list = rot.tolist()
         res = find_locations(rot_list)
-        locations[N - 1] = res
+        locations.append(res)
 
 # In[1]
 
-T = locations.shape[0] - 1
-N = locations.shape[2] ** 2
+T = len(locations) - 1
 delta_T = 0.1
 
 # initialize states
-states = np.zeros(shape=(T, N, 3))
+# states = np.zeros(shape=(T, N, 3))
+states = []
 for i in range(0, T):
     loc_1 = locations[i]
     loc_2 = locations[i + 1]
-    for row in range(0, len(loc_1)):
-        for col in range(0, len(loc_2)):
-            states[i, row * 3 + col] = (loc_1[row] - loc_2[col]) / delta_T
+    len_row = len(loc_1)
+    len_col = len(loc_2)
+    states.append([0.0 for i in range(0, len_row * len_col)])
+    for row in range(0, len_row):
+        for col in range(0, len_col):
+            states[i][row * len_col + col] = (loc_1[row] - loc_2[col]) / delta_T
 
 # dummy observed acc
-acc_observed = np.zeros(shape=(T - 1, 3))
 res = np.zeros(shape=(T, 3))
-
+acc_observed = 0
 # Initialization state
 
-probs = np.zeros(shape=(T, N))
+# probs = np.zeros(shape=(T, N))
 # updating from 1 to T
+probs = [[0 for i in range(0, len(states[0]))]]
 for t in range(0, T - 1):
     state_from = states[t]
     state_to = states[t + 1]
     tag = 0
     min = 1000000
+    probs.append([0 for i in range(0, len(state_to))])
     for col in range(0, len(state_to)):
         min_temp = 1000000
         for row in range(0, len(state_from)):
             if row % 3 == col / 3:
-                acc = (state_to[row] - state_from[col]) / delta_T
+                acc = (state_to[col] - state_from[row]) / delta_T
                 temp = np.sum((acc - acc_observed) ** 2)
-                temp_probs = probs[t][row]+temp
+                temp_probs = probs[t][row] + temp
                 if temp_probs < min_temp:
-                    probs[t+1][col] = temp_probs
+                    probs[t + 1][col] = temp_probs
 
-        if probs[t+1][col] < min:
-            min = probs[t+1][col]
+        if probs[t + 1][col] < min:
+            min = probs[t + 1][col]
             tag = col
+    rr_len = len(locations[t+2])
+    tag = tag % rr_len
+    print(locations[t + 2][tag])
+    res[t + 1] = locations[t + 2][tag]
 
-    print(locations[t + 2, tag])
-    res[t + 1] = locations[t + 2, tag]
-
-out = open("res-elbow.csv", "a+", newline="")
+out = open("res.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
