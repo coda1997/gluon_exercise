@@ -2,6 +2,7 @@
 import pymongo
 import numpy as np
 import csv
+import math
 
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
@@ -9,51 +10,65 @@ mydb = myclient["rotation"]
 cols = mydb["datas_arm_weight_training_wrist"]
 
 
-def get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error):
-    res = cols.find({"rot0": {"$gt": rot0 - error, "$lt": rot0 + error},
-                     "rot1": {"$gt": rot1 - error, "$lt": rot1 + error},
-                     "rot2": {"$gt": rot2 - error, "$lt": rot2 + error},
-                     "rot3": {"$gt": rot3 - error, "$lt": rot3 + error},
-                     "rot4": {"$gt": rot4 - error, "$lt": rot4 + error},
-                     "rot5": {"$gt": rot5 - error, "$lt": rot5 + error},
-                     "rot6": {"$gt": rot6 - error, "$lt": rot6 + error},
-                     "rot7": {"$gt": rot7 - error, "$lt": rot7 + error},
-                     "rot8": {"$gt": rot8 - error, "$lt": rot8 + error}
+def get_locations_from_database(q0, q1, q2, q3, error):
+    res = cols.find({"q0": {"$gt": q0 - error, "$lt": q0 + error},
+                     "q1": {"$gt": q1 - error, "$lt": q1 + error},
+                     "q2": {"$gt": q2 - error, "$lt": q2 + error},
+                     "q3": {"$gt": q3 - error, "$lt": q3 + error}
                      })
     if res.count() == 0:
-        return get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error + 0.06)
+        return get_locations_from_database(q0, q1, q2, q3, error + 0.06)
     else:
         print(res.count())
         return res
 
 
+def rotation_matrix_to_quaternions(R):
+    tr = R[0][0] + R[1][1] + R[2][2]
+    quaternisons = [0.0, 0.0, 0.0, 0.0]
+    if tr > 0:
+        quaternisons[0] = math.sqrt(1 + tr) / 2
+        quaternisons[1] = (R[2][1] - R[1][2]) / quaternisons[0] / 4
+        quaternisons[2] = (R[0][2] - R[2][0]) / quaternisons[0] / 4
+        quaternisons[1] = (R[1][0] - R[0][1]) / quaternisons[0] / 4
+    else:
+        max = np.max([R[0][0], R[1][1], R[2][2]])
+        if max == R[0][0]:
+            t = math.sqrt(1 + R[0][0] - R[1][1] - R[2][2])
+            quaternisons[0] = (R[2][1] - R[1][2]) / t
+            quaternisons[1] = t / 4
+            quaternisons[2] = (R[0][2] + R[2][0]) / t
+            quaternisons[3] = (R[0][1] + R[1][0]) / t
+        if max == R[1][1]:
+            t = math.sqrt(1 - R[0][0] + R[1][1] - R[2][2])
+            quaternisons[0] = (R[0][2] - R[2][0]) / t
+            quaternisons[1] = (R[0][1] + R[1][0]) / t
+            quaternisons[2] = t / 4
+            quaternisons[3] = (R[2][1] + R[1][2]) / t
+        if max == R[2][2]:
+            t = math.sqrt(1 - R[0][0] - R[1][1] + R[2][2])
+            quaternisons[0] = (R[1][0] - R[0][1]) / t
+            quaternisons[1] = (R[0][2] + R[2][0]) / t
+            quaternisons[2] = (R[1][2] - R[2][1]) / t
+            quaternisons[3] = t / 4
+
+    return quaternisons
+
+
 def find_locations(rotation_matrix):
-    rot0 = round(rotation_matrix[0][0], 4)
-    rot1 = round(rotation_matrix[0][1], 4)
-    rot2 = round(rotation_matrix[0][2], 4)
-    rot3 = round(rotation_matrix[1][0], 4)
-    rot4 = round(rotation_matrix[1][1], 4)
-    rot5 = round(rotation_matrix[1][2], 4)
-    rot6 = round(rotation_matrix[2][0], 4)
-    rot7 = round(rotation_matrix[2][1], 4)
-    rot8 = round(rotation_matrix[2][2], 4)
+    Q = rotation_matrix_to_quaternions(rotation_matrix)
     error = 0.05
-    rotation_matrix = np.reshape(rotation_matrix, 9)
-    res = get_locations_from_database(rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8, error)
+    res = get_locations_from_database(Q[0], Q[1], Q[2], Q[3], error)
+    Q = np.array(Q)
     dist = 10000
     loc = ""
     for r in res:
-        rot0 = r["rot0"]
-        rot1 = r["rot1"]
-        rot2 = r["rot2"]
-        rot3 = r["rot3"]
-        rot4 = r["rot4"]
-        rot5 = r["rot5"]
-        rot6 = r["rot6"]
-        rot7 = r["rot7"]
-        rot8 = r["rot8"]
-        temp = np.array([rot0, rot1, rot2, rot3, rot4, rot5, rot6, rot7, rot8])
-        distance = np.sum((temp - rotation_matrix) ** 2)
+        q0 = r["q0"]
+        q1 = r["q1"]
+        q2 = r["q2"]
+        q3 = r["q3"]
+        temp = np.array([q0, q1, q2, q3])
+        distance = np.sum((temp - Q) ** 2)
         if dist > distance:
             dist = distance
             loc = r["loc"]
@@ -158,12 +173,12 @@ for t in range(0, T - 1):
         if probs[t + 1][col] < min:
             min = probs[t + 1][col]
             tag = col
-    rr_len = len(locations[t+2])
+    rr_len = len(locations[t + 2])
     tag = tag % rr_len
     print(locations[t + 2][tag])
     res[t + 1] = locations[t + 2][tag]
 
-out = open("res.csv", "a+", newline="")
+out = open("res-wrist.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
