@@ -7,7 +7,7 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas_arm_weight_training_wrist"]
+cols = mydb["datas_arm_weight_training"]
 
 
 def get_locations_from_database(q0, q1, q2, q3, error):
@@ -131,7 +131,7 @@ for row in csv_reader:
 # In[1]
 
 T = len(locations) - 1
-delta_T = 0.1
+delta_T = 0.011
 
 # initialize states
 # states = np.zeros(shape=(T, N, 3))
@@ -169,6 +169,7 @@ for t in range(0, T - 1):
                 temp_probs = probs[t][row] + temp
                 if temp_probs < min_temp:
                     probs[t + 1][col] = temp_probs
+                    min_temp = temp_probs
 
         if probs[t + 1][col] < min:
             min = probs[t + 1][col]
@@ -178,7 +179,7 @@ for t in range(0, T - 1):
     print(locations[t + 2][tag])
     res[t + 1] = locations[t + 2][tag]
 
-out = open("res-wrist.csv", "a+", newline="")
+out = open("res-elbow.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
