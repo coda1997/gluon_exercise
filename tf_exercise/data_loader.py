@@ -7,7 +7,7 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas_arm_weight_training"]
+cols = mydb["datas_arm_weight_training_wrist"]
 
 
 def get_locations_from_database(q0, q1, q2, q3, error):
@@ -112,26 +112,28 @@ def romatrix(a1, a2, a3):
     return R
 
 
-csv_reader = csv.reader(open('5.csv', encoding='utf-8'))
+csv_reader = csv.reader(open('1.csv', encoding='utf-8'))
 
 # locs = np.array((10, -1, 3))
 locations = []
+times = []
 _temp = 0
 for row in csv_reader:
     # if N > 10:  # 11 times
     #     break
     # N = N + 1
 
-    if len(row) == 7:
-        rot = romatrix(float(row[6]), float(row[5]), float(row[3]))
+    if len(row) == 8:
+        rot = romatrix(float(row[7]), float(row[6]), float(row[4]))
         rot_list = rot.tolist()
         res = find_locations(rot_list)
         locations.append(res)
+        times.append(int(row[0]))
 
 # In[1]
 
 T = len(locations) - 1
-delta_T = 0.011
+# delta_T = 0.011
 
 # initialize states
 # states = np.zeros(shape=(T, N, 3))
@@ -144,7 +146,7 @@ for i in range(0, T):
     states.append([0.0 for i in range(0, len_row * len_col)])
     for row in range(0, len_row):
         for col in range(0, len_col):
-            states[i][row * len_col + col] = (loc_1[row] - loc_2[col]) / delta_T
+            states[i][row * len_col + col] = (loc_1[row] - loc_2[col]) / ((times[i + 1] - times[i]) * 1000)
 
 # dummy observed acc
 res = np.zeros(shape=(T, 3))
@@ -164,7 +166,7 @@ for t in range(0, T - 1):
         min_temp = 1000000
         for row in range(0, len(state_from)):
             if row % 3 == col / 3:
-                acc = (state_to[col] - state_from[row]) / delta_T
+                acc = (state_to[col] - state_from[row]) / ((2 * times[t + 1] - times[t + 2] - times[t]) * 500)
                 temp = np.sum((acc - acc_observed) ** 2)
                 temp_probs = probs[t][row] + temp
                 if temp_probs < min_temp:
@@ -179,7 +181,7 @@ for t in range(0, T - 1):
     print(locations[t + 2][tag])
     res[t + 1] = locations[t + 2][tag]
 
-out = open("res-elbow.csv", "a+", newline="")
+out = open("res-wrist.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
