@@ -7,7 +7,7 @@ import math
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas_arm_weight_training_wrist"]
+cols = mydb["datas_arm_weight_training"]
 
 
 def get_locations_from_database(q0, q1, q2, q3, error):
@@ -19,7 +19,7 @@ def get_locations_from_database(q0, q1, q2, q3, error):
     if res.count() == 0:
         return get_locations_from_database(q0, q1, q2, q3, error + 0.06)
     else:
-        print(res.count())
+        # print(res.count())
         return res
 
 
@@ -62,17 +62,23 @@ def find_locations(rotation_matrix):
     Q = np.array(Q)
     dist = 10000
     loc = ""
+    result = []
     for r in res:
-        q0 = r["q0"]
-        q1 = r["q1"]
-        q2 = r["q2"]
-        q3 = r["q3"]
-        temp = np.array([q0, q1, q2, q3])
-        distance = np.sum((temp - Q) ** 2)
-        if dist > distance:
-            dist = distance
-            loc = r["loc"]
-    return loc_string_to_array(loc)
+        loc = r["loc"]
+        loc = loc_string_to_array(loc)
+        for l in loc:
+            result.append(l)
+        # q0 = r["q0"]
+        # q1 = r["q1"]
+        # q2 = r["q2"]
+        # q3 = r["q3"]
+        # temp = np.array([q0, q1, q2, q3])
+        # distance = np.sum((temp - Q) ** 2)
+        # if dist > distance:
+        #     dist = distance
+        #     loc = r["loc"]
+    print(len(result))
+    return result
 
 
 def loc_string_to_array(loc):
@@ -83,7 +89,7 @@ def loc_string_to_array(loc):
         res[i][0] = float(ress[3 * i].strip().lstrip('[').rstrip(']'))
         res[i][1] = float(ress[3 * i + 1].strip().lstrip('[').rstrip(']'))
         res[i][2] = float(ress[3 * i + 2].strip().lstrip('[').rstrip(']'))
-    print(res)
+    # print(res)
     return res
 
 
@@ -128,6 +134,7 @@ for row in csv_reader:
         rot_list = rot.tolist()
         res = find_locations(rot_list)
         locations.append(res)
+        # print(res[0][0]**2+res[0][1]**2+res[0][2]**2)
         times.append(int(row[0]))
 
 # In[1]
@@ -181,7 +188,7 @@ for t in range(0, T - 1):
     print(locations[t + 2][tag])
     res[t + 1] = locations[t + 2][tag]
 
-out = open("res-wrist.csv", "a+", newline="")
+out = open("res-elbow.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
 for t in range(1, len(res)):
