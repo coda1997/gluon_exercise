@@ -1,14 +1,13 @@
-# In[0]
 import pymongo
 import numpy as np
 import csv
 import math
-from numba import vectorize
+from timeit import default_timer as timer
 
 # connect to the database
 myclient = pymongo.MongoClient("mongodb://localhost:27017/")
 mydb = myclient["rotation"]
-cols = mydb["datas_arm_weight_training"]
+cols = mydb["datas_arm_weight_training_wrist"]
 
 
 def get_locations_from_database(q0, q1, q2, q3, error):
@@ -18,7 +17,7 @@ def get_locations_from_database(q0, q1, q2, q3, error):
                      "q3": {"$gt": q3 - error, "$lt": q3 + error}
                      })
     if res.count() == 0:
-        return get_locations_from_database(q0, q1, q2, q3, error + 0.06)
+        return get_locations_from_database(q0, q1, q2, q3, error + 0.02)
     else:
         # print(res.count())
         return res
@@ -58,7 +57,7 @@ def rotation_matrix_to_quaternions(R):
 
 def find_locations(rotation_matrix):
     Q = rotation_matrix_to_quaternions(rotation_matrix)
-    error = 0.05
+    error = 0.02
     res = get_locations_from_database(Q[0], Q[1], Q[2], Q[3], error)
     Q = np.array(Q)
     dist = 10000
@@ -69,16 +68,6 @@ def find_locations(rotation_matrix):
         loc = loc_string_to_array(loc)
         for l in loc:
             result.append(l)
-        # q0 = r["q0"]
-        # q1 = r["q1"]
-        # q2 = r["q2"]
-        # q3 = r["q3"]
-        # temp = np.array([q0, q1, q2, q3])
-        # distance = np.sum((temp - Q) ** 2)
-        # if dist > distance:
-        #     dist = distance
-        #     loc = r["loc"]
-    print(len(result))
     return result
 
 
@@ -90,18 +79,17 @@ def loc_string_to_array(loc):
         res[i][0] = float(ress[3 * i].strip().lstrip('[').rstrip(']'))
         res[i][1] = float(ress[3 * i + 1].strip().lstrip('[').rstrip(']'))
         res[i][2] = float(ress[3 * i + 2].strip().lstrip('[').rstrip(']'))
-    # print(res)
     return res
 
 
 def romatrix(a1, a2, a3):
-    sinZ = np.sin(a1)
-    sinX = np.sin(a2)
-    sinY = np.sin(a3)
+    sinZ = math.sin(a1)
+    sinX = math.sin(a2)
+    sinY = math.sin(a3)
 
-    cosZ = np.cos(a1)
-    cosX = np.cos(a2)
-    cosY = np.cos(a3)
+    cosZ = math.cos(a1)
+    cosX = math.cos(a2)
+    cosY = math.cos(a3)
     xM = [[1, 0, 0], [0, cosX, sinX], [0, -sinX, cosX]]
 
     xM = np.mat(xM)
@@ -112,6 +100,7 @@ def romatrix(a1, a2, a3):
 
     R = zM * xM * yM
     world2watch = np.linalg.inv(R)
+    # world2watch = R
     body2world = [[-1, 0, 0], [0, 0, -1], [0, -1, 0]]
     body2world = np.mat(body2world)
     R = body2world * world2watch
@@ -119,79 +108,68 @@ def romatrix(a1, a2, a3):
     return R
 
 
-acc_observed = []
+def data_handler(pre_locs, locs, pre_time, cur_time):
+    if len(pre_locs) == 0:
+        return [], 0
+    row, col = pre_locs.shape[0], locs.shape[0]
+    time = cur_time - pre_time
+    states = np.zeros((row * col, 3))
+    for r in range(0, row):
+        for c in range(0, col):
+            states[r * col + c] = (pre_locs[r] - locs[c]) / time * 1000
+    return states, time
 
 
-def get_data_from_csv(path):
-    csv_reader = csv.reader(open(path, encoding='utf-8'))
-    locations = []
-    times = []
-    for row in csv_reader:
-        if len(row) == 8:
-            rot = romatrix(float(row[7]), float(row[6]), float(row[4]))
-            acc = [float(row[1]), float(row[2]), float(row[3])]
-            acc_observed.append(acc)
-            rot_list = rot.tolist()
-            res = find_locations(rot_list)
-            locations.append(res)
-            # print(res[0][0]**2+res[0][1]**2+res[0][2]**2)
-            times.append(int(row[0]))
-    return locations, times
-
-
-path = '2.csv'
-
-locations, times = get_data_from_csv(path)
-locations = np.array(locations)
-T = len(locations) - 1
-
-states = []
-for i in range(0, T):
-    loc_1 = locations[i]
-    loc_2 = locations[i + 1]
-    len_row = len(loc_1)
-    len_col = len(loc_2)
-    states.append([0.0 for i in range(0, len_row * len_col)])
-    print((len_row, len_col))
-    for row in range(0, len_row):
-        for col in range(0, len_col):
-            states[i][row * len_col + col] = (loc_1[row] - loc_2[col]) / ((times[i + 1] - times[i]) * 1000)
-
-res = np.zeros(shape=(T, 3))
-
-# probs = [0 for i in range(0, len(states[0]))]
-probs = np.zeros(len(states[0]))
-# probs_2 = [0 for i in range(0, len(states[1]))]
-probs_2 = np.zeros(len(states[1]))
-for t in range(0, T - 1):
-    state_from = states[t]
-    state_to = states[t + 1]
-    tag = 0
-    min = 1000000
-    print((len(state_from), len(state_to)))
-    for col in range(0, len(state_to)):
-        min_temp = 1000000
-        for row in range(0, len(state_from)):
+def viterbi(pre_state, cur_state, pre_tt, cur_tt, pre_prob):
+    if len(pre_state) == 0:
+        return []
+    row, col = pre_state.shape[0], cur_state.shape[0]
+    probs = np.zeros((col, row))
+    if len(pre_prob) == 0:
+        pre_prob = np.ones(pre_state.shape[0])
+    for r in range(0, row):
+        for c in range(0, col):
             if row % 3 == col / 3:
-                acc = (state_to[col] - state_from[row]) / ((2 * times[t + 1] - times[t + 2] - times[t]) * 500)
-                temp = np.sum((acc - acc_observed[t]) ** 2)
-                temp_probs = probs[row] + temp
-                if temp_probs < min_temp:
-                    probs_2[col] = temp_probs
-                    min_temp = temp_probs
+                acc = (cur_state[c] - pre_state[r]) / (pre_tt + cur_tt) * 2
+                acc_offset = np.sum((acc - acc_observed) ** 2)
+                probs[c, r] = np.exp(acc_offset)
+    prob = np.dot(probs, pre_prob)
+    r = locs[np.argmax(prob)]
+    print(str(r))
+    ress.append(r)
+    return prob
 
-        if probs_2[col] < min:
-            min = probs_2[col]
-            tag = col
-    rr_len = len(locations[t + 2])
-    tag = tag % rr_len
-    print(locations[t + 2][tag])
-    res[t + 1] = locations[t + 2][tag]
-    probs = probs_2
-    probs_2 = np.zeros(len(states[t+2]))
 
-out = open("res-elbow.csv", "a+", newline="")
+csv_reader = csv.reader(open('1.csv', encoding='utf-8'))
+pre_locs = []
+locs = []
+pre_time = 0
+cur_time = 0
+pre_state = []
+cur_state = []
+pre_tt = 0
+cur_tt = 0
+acc_observed = np.zeros(3)
+cur_prob = []
+ress = []
+for row in csv_reader:
+    start_time = timer()
+    if len(row) == 8:
+        rot = romatrix(float(row[7]), float(row[6]), float(row[4]))
+        acc_observed = np.array([float(row[1]), float(row[2]), float(row[3])])
+        rot_list = rot
+        res = find_locations(rot_list)
+        pre_locs = locs
+        locs = np.array(res)
+        pre_time = cur_time
+        cur_time = int(row[0])
+        pre_state, pre_tt = cur_state, cur_tt
+        cur_state, cur_tt = data_handler(pre_locs, locs, pre_time, cur_time)
+        cur_prob = viterbi(pre_state, cur_state, pre_tt, cur_tt, cur_prob)
+    print(timer() - start_time)
+
+out = open("res-wrist.csv", "a+", newline="")
 csv_writer = csv.writer(out, dialect="excel")
 
-for t in range(1, len(res)):
-    csv_writer.writerow(res[t])
+for t in range(0, len(ress)):
+    csv_writer.writerow(ress[t])

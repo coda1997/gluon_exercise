@@ -1,5 +1,16 @@
-from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
-from matplotlib import pyplot as plt
-import csv
 
+from numba import vectorize
+
+
+@vectorize(['float32(float32, float32)'], target='cuda')
+def Add(a, b):
+    return a + b
+
+
+N = 100000
+A = np.ones(N, dtype=np.float32)
+B = np.ones(A.shape, dtype=A.dtype)
+C = np.empty_like(A, dtype=A.dtype)
+
+C = Add(A, B)
