@@ -18,7 +18,7 @@ def get_locations_from_database(q0, q1, q2, q3, error):
                      "q3": {"$gt": q3 - error, "$lt": q3 + error}
                      })
     if res.count() == 0:
-        return get_locations_from_database(q0, q1, q2, q3, error + 0.06)
+        return get_locations_from_database(q0, q1, q2, q3, error + 0.01)
     else:
         # print(res.count())
         return res
@@ -58,7 +58,7 @@ def rotation_matrix_to_quaternions(R):
 
 def find_locations(rotation_matrix):
     Q = rotation_matrix_to_quaternions(rotation_matrix)
-    error = 0.05
+    error = 0.01
     res = get_locations_from_database(Q[0], Q[1], Q[2], Q[3], error)
     Q = np.array(Q)
     dist = 10000
@@ -95,6 +95,9 @@ def loc_string_to_array(loc):
 
 
 def romatrix(a1, a2, a3):
+    a1 = math.pi / 180 * a1
+    a2 = math.pi / 180 * a2
+    a3 = math.pi / 180 * a3
     sinZ = np.sin(a1)
     sinX = np.sin(a2)
     sinY = np.sin(a3)
@@ -129,7 +132,7 @@ def get_data_from_csv(path):
     for row in csv_reader:
         if len(row) == 8:
             rot = romatrix(float(row[7]), float(row[6]), float(row[4]))
-            acc = [float(row[1]), float(row[2]), float(row[3])]
+            acc = [float(row[1])*9.8, float(row[2])*9.8, float(row[3])*9.8]
             acc_observed.append(acc)
             rot_list = rot.tolist()
             res = find_locations(rot_list)
