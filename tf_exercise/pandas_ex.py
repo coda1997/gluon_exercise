@@ -11,21 +11,22 @@ cols = mydb["datas_arm_weight_training"]
 
 
 def get_locations_from_database(q0, q1, q2, q3, error):
-    res = cols.find({"q0": {"$gt": q0 - error, "$lt": q0 + error},
-                     "q1": {"$gt": q1 - error, "$lt": q1 + error},
-                     "q2": {"$gt": q2 - error, "$lt": q2 + error},
-                     "q3": {"$gt": q3 - error, "$lt": q3 + error}
-                     })
-    while res.count() == 0:
+    locations = cols.find({"q0": {"$gt": q0 - error, "$lt": q0 + error},
+                           "q1": {"$gt": q1 - error, "$lt": q1 + error},
+                           "q2": {"$gt": q2 - error, "$lt": q2 + error},
+                           "q3": {"$gt": q3 - error, "$lt": q3 + error}
+                           })
+    while locations.count() == 0:
         error += 0.001
-        res = cols.find({"q0": {"$gt": q0 - error, "$lt": q0 + error},
-                         "q1": {"$gt": q1 - error, "$lt": q1 + error},
-                         "q2": {"$gt": q2 - error, "$lt": q2 + error},
-                         "q3": {"$gt": q3 - error, "$lt": q3 + error}
-                         })
-    if res.count() > 100:
-        res = res[0:100]
-    return res
+        locations = cols.find({"q0": {"$gt": q0 - error, "$lt": q0 + error},
+                               "q1": {"$gt": q1 - error, "$lt": q1 + error},
+                               "q2": {"$gt": q2 - error, "$lt": q2 + error},
+                               "q3": {"$gt": q3 - error, "$lt": q3 + error}
+                               })
+    if locations.count() > 50:
+        locations = locations[0:50]
+    print('Current location number is %d' % locations.count())
+    return locations
 
 
 def rotation_matrix_to_quaternions(R):
@@ -61,12 +62,11 @@ def rotation_matrix_to_quaternions(R):
 
 
 def find_locations(rotation_matrix):
-    time_1 = timer()
+    # time_1 = timer()
     Q = rotation_matrix_to_quaternions(rotation_matrix)
     error = 0.01
     res = get_locations_from_database(Q[0], Q[1], Q[2], Q[3], error)
     Q = np.array(Q)
-    dist = 10000
     loc = ""
     result = []
     for r in res:
@@ -74,7 +74,7 @@ def find_locations(rotation_matrix):
         loc = loc_string_to_array(loc)
         for l in loc:
             result.append(l)
-    print('find location time %d' % (timer() - time_1))
+    # print('find location time %d' % (timer() - time_1))
     return result
 
 
@@ -109,11 +109,11 @@ def romatrix(a1, a2, a3):
     zM = np.mat(zM)
 
     R = zM * xM * yM
-    # world2watch = R
-    world2watch = np.linalg.inv(R)
-    # body2world = [[0, 1, 0], [-1, 0, 0], [0, 0, 1]]
-    # body2world = np.mat(body2world)
-    R = world2watch
+    world2watch = R
+    # world2watch = np.linalg.inv(R)
+    body2world = [[0, 1, 0], [0, 0, -1], [-1, 0, 0]]
+    body2world = np.mat(body2world)
+    R = body2world * world2watch
     R = np.round(R, 2)
     return R
 
@@ -151,7 +151,15 @@ def viterbi(pre_state, cur_state, pre_tt, cur_tt, pre_prob):
     r = locs[np.argmax(prob)]
     print(str(r))
     ress.append(r)
+    csv_writer.writerow(r)
     return prob
+
+
+def is_memory_enough(pre_state, cur_state):
+    if len(pre_state) == 0:
+        return True
+    a, b = pre_state.shape[0], cur_state.shape[0]
+    return a * b < 1000000000
 
 
 csv_reader = csv.reader(open('3.csv', encoding='utf-8'))
@@ -166,6 +174,9 @@ cur_tt = 0
 acc_observed = np.zeros(3)
 cur_prob = []
 ress = []
+
+out = open("res-elbow.csv", "a+", newline="")
+csv_writer = csv.writer(out, dialect="excel")
 for row in csv_reader:
     start_time = timer()
     if len(row) == 8:
@@ -182,8 +193,7 @@ for row in csv_reader:
         cur_prob = viterbi(pre_state, cur_state, pre_tt, cur_tt, cur_prob)
     print(timer() - start_time)
 
-out = open("res-elbow.csv", "a+", newline="")
-csv_writer = csv.writer(out, dialect="excel")
 
-for t in range(0, len(ress)):
-    csv_writer.writerow(ress[t])
+#
+# for t in range(0, len(ress)):
+#     csv_writer.writerow(ress[t])
