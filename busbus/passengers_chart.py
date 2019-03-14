@@ -22,6 +22,7 @@ y_3 = np.array(
 y_4 = np.array(
     [0.747, 0.75917, 0.82583, 0.85222, 0.87999, 0.916213, 0.91354, 0.91774, 0.91999, 0.91315, 0.91011, 0.91971,
      0.91971, 0.91177, 0.92079, 0.92187, 0.9225, 0.92971, 0.936])
+print((np.average(y_1[7:]), np.average(y_2[7:]), np.average(y_3[7:]), np.average(y_4[7:])))
 ax.plot(x_1, y_1, 'ro--', label='Bus Crowdedness Level 1', linewidth=2)
 ax.plot(x_2, y_2, 'b^--', label='Bus Crowdedness Level 2', linewidth=2)
 ax.plot(x, y_3, 'm*--', label='Bus Crowdedness Level 3', linewidth=2)
