@@ -7,9 +7,6 @@ x = torch.unsqueeze(torch.linspace(-1, 1, 100), dim=1)
 y = x.pow(2) + 0.2 * torch.rand(x.size())
 
 
-# plt.scatter(x.numpy(), y.numpy())
-# plt.show()
-
 class Net(torch.nn.Module):
     def __init__(self, n_feature, n_hidden, n_output):
         super(Net, self).__init__()
@@ -40,5 +37,3 @@ for t in range(1000):
         plt.scatter(x.numpy(), y.numpy())
         plt.plot(x.numpy(), prediction.data.numpy(), 'r--', lw=5)
         plt.pause(0.1)
-
-

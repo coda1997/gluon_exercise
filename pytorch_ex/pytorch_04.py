@@ -1,31 +1,29 @@
-import numpy as np
+import torch
+
+dtype = torch.float
+device = torch.device("cuda:0")
 
 N, D_in, H, D_out = 64, 1000, 100, 10
 
-x = np.random.randn(N, D_in)
-y = np.random.randn(N, D_out)
+x = torch.randn(N, D_in, device=device, dtype=dtype)
+y = torch.randn(N, D_out, device=device, dtype=dtype)
 
-w1 = np.random.randn(D_in, H)
-w2 = np.random.randn(H, D_out)
+w1 = torch.randn(D_in, H, device=device, dtype=dtype, requires_grad=True)
+w2 = torch.randn(H, D_out, device=device, dtype=dtype, requires_grad=True)
 
 learning_rate = 1e-6
 
-for t in range(500):
-    h = x.dot(w1)
-    h_relu = np.maximum(h, 0)
-    y_pred = h_relu.dot(w2)
+for t in range(50000):
+    y_pred = x.mm(w1).clamp(min=0).mm(w2)
 
-    loss = np.square(y_pred-y).sum()
+    loss = (y_pred - y).pow(2).sum()
+    if t % 100 == 0:
+        print(t, loss)
 
-    print(t, loss)
+    loss.backward()
 
-    grad_y_pred = 2.0 * (y_pred-y)
-    grad_w2 = h_relu.T.dot(grad_y_pred)
-    grad_h_relu = grad_y_pred.dot(w2.T)
-    grad_h = grad_h_relu.copy()
-    grad_h[h < 0] = 0
-    grad_w1 = x.T.dot(grad_h)
-
-    # Update weights
-    w1 -= learning_rate * grad_w1
-    w2 -= learning_rate * grad_w2
+    with torch.no_grad():
+        w1 -= learning_rate * w1.grad
+        w2 -= learning_rate * w2.grad
+        w1.grad.zero_()
+        w2.grad.zero_()
